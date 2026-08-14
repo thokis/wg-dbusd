@@ -10,6 +10,7 @@ BusName=io.github.thokis.WireGuard1
 ExecStart=/usr/local/sbin/wg-dbusd
 User=wg-dbusd
 Group=wg-dbusd
+# Environment=RUST_LOG=wg_dbusd=debug
 
 # Reading WireGuard state over netlink needs CAP_NET_ADMIN; nothing else.
 AmbientCapabilities=CAP_NET_ADMIN
