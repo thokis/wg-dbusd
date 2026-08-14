@@ -4,6 +4,7 @@ mod device;
 mod peer;
 mod service;
 mod wireguard;
+mod xml;
 
 use crate::service::Service;
 

@@ -1,0 +1,42 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.*'
+
+permissions:
+  contents: write
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: taiki-e/create-gh-release-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  upload:
+    needs: create-release
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - x86_64-unknown-linux-gnu       # amd64 (glibc)
+          - x86_64-unknown-linux-musl      # amd64 (static)
+          - aarch64-unknown-linux-gnu      # arm64, Pi 3/4/5 64-bit (glibc)
+          - aarch64-unknown-linux-musl     # arm64 (static)
+          - armv7-unknown-linux-gnueabihf  # arm32, Pi 2/3/4 32-bit (glibc)
+          - armv7-unknown-linux-musleabihf # arm32 (static)
+    steps:
+      - uses: actions/checkout@v4
+      - uses: taiki-e/upload-rust-binary-action@v1
+        with:
+          bin: wg-dbusd
+          target: ${{ matrix.target }}
+          archive: $bin-$tag-$target
+          include: dist,README.md,LICENSE
+          checksum: sha256
+          token: ${{ secrets.GITHUB_TOKEN }}

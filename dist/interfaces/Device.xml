@@ -1,0 +1,13 @@
+<node>
+ <interface name="io.github.thokis.WireGuard1.Device">
+   <property name="FwMark" type="u" access="read"/>
+   <property name="IfIndex" type="u" access="read">
+     <annotation name="org.freedesktop.DBus.Property.EmitsChangedSignal" value="const"/>
+   </property>
+   <property name="IfName" type="s" access="read">
+     <annotation name="org.freedesktop.DBus.Property.EmitsChangedSignal" value="const"/>
+   </property>
+   <property name="ListenPort" type="q" access="read"/>
+   <property name="PublicKey" type="s" access="read"/>
+ </interface>
+</node>

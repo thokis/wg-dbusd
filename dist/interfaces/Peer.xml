@@ -1,0 +1,19 @@
+<node>
+ <interface name="io.github.thokis.WireGuard1.Peer">
+   <property name="AllowedIps" type="as" access="read"/>
+   <property name="Endpoint" type="s" access="read"/>
+   <!--
+    Epoch seconds; 0 = never.
+    -->
+   <property name="LastHandshakeTime" type="t" access="read"/>
+   <property name="PersistentKeepaliveInterval" type="q" access="read"/>
+   <property name="ProtocolVersion" type="u" access="read"/>
+   <property name="PublicKey" type="s" access="read"/>
+   <property name="RxBytes" type="t" access="read">
+     <annotation name="org.freedesktop.DBus.Property.EmitsChangedSignal" value="false"/>
+   </property>
+   <property name="TxBytes" type="t" access="read">
+     <annotation name="org.freedesktop.DBus.Property.EmitsChangedSignal" value="false"/>
+   </property>
+ </interface>
+</node>

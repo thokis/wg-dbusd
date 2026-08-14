@@ -2,6 +2,13 @@
 name = "wg-dbusd"
 version = "0.1.0"
 edition = "2024"
+description = "Publishes WireGuard interface and peer state on the system D-Bus."
+authors = ["Thomas Kiss"]
+license = "BSD-3-Clause"
+repository = "https://github.com/thokis/wg-dbusd"
+readme = "README.md"
+keywords = ["wireguard", "dbus", "netlink", "systemd", "vpn"]
+categories = ["network-programming"]
 
 [dependencies]
 anyhow = "1.0.104"
@@ -9,6 +16,13 @@ base64 = "0.23.1"
 env_logger = "0.11.11"
 hex = "0.4.3"
 log = "0.4.33"
-tokio = { version = "1.53.1", features = ["full"] }
+tokio = { version = "1.53.1", features = ["rt-multi-thread", "macros", "time", "signal"] }
 wireguard-uapi = "3.0.1"
 zbus = { version = "5.19.0", features = ["tokio"] }
+
+[profile.release]
+opt-level = "z"     # optimize for size — the daemon is I/O-bound, not hot
+lto = true          # link-time optimization: smaller and faster
+codegen-units = 1   # better optimization at the cost of compile time
+strip = true        # drop symbols — the single biggest size win
+panic = "abort"     # no unwind tables; a daemon should die and be restarted
