@@ -1,9 +1,13 @@
+//! The `Device` D-Bus interface (one object per interface).
+
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use zbus::interface;
 use zbus::object_server::SignalEmitter;
 
+/// D-Bus wrapper around a WireGuard interface.
 #[derive(Debug)]
 pub struct Device {
+    // SECURITY: never expose the private key — public key only.
     device: wireguard_uapi::get::Device,
 }
 
@@ -14,6 +18,7 @@ impl From<wireguard_uapi::get::Device> for Device {
 }
 
 impl Device {
+    /// Refresh, emitting `PropertiesChanged` only for changed properties.
     pub async fn update(
         &mut self,
         device: wireguard_uapi::get::Device,
@@ -62,5 +67,34 @@ impl Device {
     #[zbus(property)]
     async fn fw_mark(&self) -> u32 {
         self.device.fwmark
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn sample() -> wireguard_uapi::get::Device {
+        wireguard_uapi::get::Device {
+            ifindex: 0,
+            ifname: "wg0".to_string(),
+            private_key: None,
+            public_key: None,
+            listen_port: 0,
+            fwmark: 0,
+            peers: vec![],
+        }
+    }
+
+    #[tokio::test]
+    async fn public_key_none_is_empty() {
+        assert_eq!(Device::from(sample()).public_key().await, "");
+    }
+
+    #[tokio::test]
+    async fn public_key_some_is_44_char_base64() {
+        let mut wg = sample();
+        wg.public_key = Some([0u8; 32]);
+        assert_eq!(Device::from(wg).public_key().await.len(), 44);
     }
 }

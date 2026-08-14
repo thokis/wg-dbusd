@@ -1,8 +1,10 @@
+//! Reconciles the D-Bus object tree with the kernel's WireGuard state.
+
 use crate::device::Device;
 use crate::peer::Peer;
 use crate::wireguard::get_wireguard_devices;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use std::collections::HashSet;
 use wireguard_uapi::linux::{RouteSocket, WgSocket};
 use zbus::connection;
@@ -10,6 +12,7 @@ use zbus::connection;
 const BUS_NAME: &str = "io.github.thokis.WireGuard1";
 const OBJECT_PATH: &str = "/io/github/thokis/WireGuard1";
 
+/// Owns the bus connection, netlink sockets, and served-path set.
 pub struct Service {
     dbus_connection: zbus::Connection,
     desired_object_paths: HashSet<String>,
@@ -19,19 +22,25 @@ pub struct Service {
 }
 
 impl Service {
+    /// Connect to the system bus, claim the name, open the netlink sockets.
     pub async fn new() -> Result<Self> {
-        let dbus_connection = connection::Builder::system()?
-            .name(BUS_NAME)?
-            .serve_at(OBJECT_PATH, zbus::fdo::ObjectManager)?
+        let dbus_connection = connection::Builder::system()
+            .context("creating the system-bus connection builder")?
+            .name(BUS_NAME)
+            .context("setting the bus name")?
+            .serve_at(OBJECT_PATH, zbus::fdo::ObjectManager)
+            .context("registering the object manager")?
             .build()
-            .await?;
+            .await
+            .context("connecting to the system bus and acquiring the name")?;
 
         Ok(Service {
             dbus_connection,
             desired_object_paths: HashSet::new(),
             served_object_paths: HashSet::new(),
-            route_socket: RouteSocket::connect()?,
-            wireguard_socket: WgSocket::connect()?,
+            route_socket: RouteSocket::connect().context("opening the rtnetlink socket")?,
+            wireguard_socket: WgSocket::connect()
+                .context("opening the WireGuard netlink socket")?,
         })
     }
 
@@ -150,6 +159,7 @@ impl Service {
         Ok(())
     }
 
+    /// One reconcile cycle: converge, then prune.
     pub async fn run(&mut self) -> Result<()> {
         self.desired_object_paths.clear();
 

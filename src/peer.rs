@@ -1,9 +1,13 @@
+//! The `Peer` D-Bus interface (one object per peer).
+
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use zbus::interface;
 use zbus::object_server::SignalEmitter;
 
+/// D-Bus wrapper around a WireGuard peer.
 #[derive(Debug)]
 pub struct Peer {
+    // SECURITY: never expose the preshared key.
     peer: wireguard_uapi::get::Peer,
 }
 
@@ -14,6 +18,7 @@ impl From<wireguard_uapi::get::Peer> for Peer {
 }
 
 impl Peer {
+    /// Refresh, emitting `PropertiesChanged` only for changed properties.
     pub async fn update(
         &mut self,
         peer: wireguard_uapi::get::Peer,
@@ -73,6 +78,7 @@ impl Peer {
         self.peer.persistent_keepalive_interval
     }
 
+    /// Epoch seconds; 0 = never.
     #[zbus(property)]
     async fn last_handshake_time(&self) -> u64 {
         self.peer.last_handshake_time.as_secs()
@@ -100,5 +106,50 @@ impl Peer {
     #[zbus(property)]
     async fn protocol_version(&self) -> u32 {
         self.peer.protocol_version
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::Duration;
+    use wireguard_uapi::get::AllowedIp;
+
+    fn sample() -> wireguard_uapi::get::Peer {
+        wireguard_uapi::get::Peer {
+            public_key: [0u8; 32],
+            preshared_key: [0u8; 32],
+            endpoint: None,
+            persistent_keepalive_interval: 0,
+            last_handshake_time: Duration::ZERO,
+            rx_bytes: 0,
+            tx_bytes: 0,
+            allowed_ips: vec![],
+            protocol_version: 1,
+        }
+    }
+
+    #[tokio::test]
+    async fn endpoint_none_is_empty() {
+        assert_eq!(Peer::from(sample()).endpoint().await, "");
+    }
+
+    #[tokio::test]
+    async fn last_handshake_zero_is_zero() {
+        assert_eq!(Peer::from(sample()).last_handshake_time().await, 0);
+    }
+
+    #[tokio::test]
+    async fn allowed_ips_include_cidr_mask() {
+        let mut wg = sample();
+        wg.allowed_ips = vec![AllowedIp {
+            family: 2,
+            ipaddr: "10.0.0.0".parse().unwrap(),
+            cidr_mask: 24,
+        }];
+        assert_eq!(
+            Peer::from(wg).allowed_ips().await,
+            vec!["10.0.0.0/24".to_string()]
+        );
     }
 }

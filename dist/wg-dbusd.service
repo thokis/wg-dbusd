@@ -1,0 +1,35 @@
+[Unit]
+Description=WireGuard telemetry on the system D-Bus
+Requires=dbus.service
+After=dbus.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=dbus
+BusName=io.github.thokis.WireGuard1
+ExecStart=/usr/local/sbin/wg-dbusd
+User=wg-dbusd
+Group=wg-dbusd
+
+# Reading WireGuard state over netlink needs CAP_NET_ADMIN; nothing else.
+AmbientCapabilities=CAP_NET_ADMIN
+CapabilityBoundingSet=CAP_NET_ADMIN
+
+# Hardening: the daemon only reads netlink and talks to the system bus.
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ProtectControlGroups=yes
+ProtectKernelModules=yes
+ProtectKernelTunables=yes
+RestrictAddressFamilies=AF_UNIX AF_NETLINK
+RestrictNamespaces=yes
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
