@@ -45,11 +45,12 @@ impl Service {
     }
 
     async fn clear_object_paths(&mut self) -> Result<()> {
-        let stale_object_paths: Vec<_> = self
+        let mut stale_object_paths: Vec<_> = self
             .served_object_paths
             .difference(&self.desired_object_paths)
             .cloned()
             .collect();
+        stale_object_paths.sort_by_key(|p| std::cmp::Reverse(p.len()));
         for object_path in stale_object_paths {
             if object_path.contains("/Peers/") {
                 if let Err(e) = self
@@ -59,10 +60,10 @@ impl Service {
                     .await
                 {
                     log::error!("could not remove peer object at {}: {}", object_path, e)
+                } else {
+                    self.served_object_paths.remove(&object_path);
+                    log::debug!("peer object {} removed", object_path);
                 }
-
-                self.served_object_paths.remove(&object_path);
-                log::debug!("peer object {} removed", object_path);
             } else {
                 if let Err(e) = self
                     .dbus_connection
@@ -71,9 +72,10 @@ impl Service {
                     .await
                 {
                     log::error!("could not remove device object at {}: {}", object_path, e)
+                } else {
+                    self.served_object_paths.remove(&object_path);
+                    log::debug!("device object {} removed", object_path);
                 }
-                self.served_object_paths.remove(&object_path);
-                log::debug!("device object {} removed", object_path);
             }
         }
         Ok(())
