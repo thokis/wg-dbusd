@@ -1,29 +1,45 @@
 //! The `Device` D-Bus interface (one object per interface).
-
+//!
+use anyhow::Result;
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use zbus::interface;
 use zbus::object_server::SignalEmitter;
+use zbus::zvariant::OwnedObjectPath;
 
 /// D-Bus wrapper around a WireGuard interface.
 #[derive(Debug)]
 pub struct Device {
     // SECURITY: never expose the private key — public key only.
     device: wireguard_uapi::get::Device,
+    peer_object_paths: Vec<OwnedObjectPath>,
 }
 
 impl From<wireguard_uapi::get::Device> for Device {
     fn from(device: wireguard_uapi::get::Device) -> Self {
-        Device { device }
+        Device {
+            device,
+            peer_object_paths: Vec::new(),
+        }
     }
 }
 
 impl Device {
+    pub fn new(
+        device: wireguard_uapi::get::Device,
+        peer_object_paths: Vec<OwnedObjectPath>,
+    ) -> Self {
+        Device {
+            device,
+            peer_object_paths,
+        }
+    }
     /// Refresh, emitting `PropertiesChanged` only for changed properties.
     pub async fn update(
         &mut self,
         device: wireguard_uapi::get::Device,
+        peer_object_paths: Vec<OwnedObjectPath>,
         emitter: &SignalEmitter<'_>,
-    ) -> zbus::Result<()> {
+    ) -> Result<()> {
         if self.device.public_key != device.public_key {
             self.device.public_key = device.public_key;
             self.public_key_changed(emitter).await?;
@@ -35,6 +51,10 @@ impl Device {
         if self.device.fwmark != device.fwmark {
             self.device.fwmark = device.fwmark;
             self.fw_mark_changed(emitter).await?;
+        }
+        if self.peer_object_paths != peer_object_paths {
+            self.peer_object_paths = peer_object_paths;
+            self.peers_changed(emitter).await?;
         }
         Ok(())
     }
@@ -67,6 +87,11 @@ impl Device {
     #[zbus(property)]
     async fn fw_mark(&self) -> u32 {
         self.device.fwmark
+    }
+
+    #[zbus(property)]
+    async fn peers(&self) -> &[OwnedObjectPath] {
+        &self.peer_object_paths
     }
 }
 

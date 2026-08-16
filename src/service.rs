@@ -7,7 +7,7 @@ use crate::wireguard::get_wireguard_devices;
 use anyhow::{Context, Result};
 use std::collections::HashSet;
 use wireguard_uapi::linux::{RouteSocket, WgSocket};
-use zbus::connection;
+use zbus::{connection, zvariant::OwnedObjectPath};
 
 const BUS_NAME: &str = "io.github.thokis.WireGuard1";
 const OBJECT_PATH: &str = "/io/github/thokis/WireGuard1";
@@ -19,6 +19,19 @@ pub struct Service {
     served_object_paths: HashSet<String>,
     route_socket: RouteSocket,
     wireguard_socket: WgSocket,
+}
+
+fn get_device_object_path(device_name: &str) -> String {
+    format!("{}/Devices/{}", OBJECT_PATH, device_name)
+}
+
+fn get_peer_object_path(device_name: &str, peer: &wireguard_uapi::get::Peer) -> String {
+    format!(
+        "{}/Devices/{}/Peers/{}",
+        OBJECT_PATH,
+        device_name,
+        hex::encode(peer.public_key)
+    )
 }
 
 impl Service {
@@ -88,15 +101,19 @@ impl Service {
             let peers = std::mem::take(&mut wg_device.peers);
 
             let name = wg_device.ifname.clone();
-            let object_path = format!("{}/Devices/{}", OBJECT_PATH, name);
+            let object_path = get_device_object_path(&wg_device.ifname);
 
             self.desired_object_paths.insert(object_path.clone());
 
+            let peer_object_paths = self.handle_peers(&name, peers).await?;
+
             if !self.served_object_paths.contains(&object_path) {
+                let object = Device::new(wg_device, peer_object_paths);
+
                 if let Err(e) = self
                     .dbus_connection
                     .object_server()
-                    .at(object_path.clone(), Device::from(wg_device))
+                    .at(object_path.clone(), object)
                     .await
                 {
                     log::error!("could not serve device {} at {}: {}", name, object_path, e)
@@ -105,19 +122,17 @@ impl Service {
                     log::debug!("device object {} added", object_path);
                 }
             } else {
-                let device_object = self
+                let object = self
                     .dbus_connection
                     .object_server()
                     .interface::<_, Device>(object_path)
                     .await?;
-                device_object
+                object
                     .get_mut()
                     .await
-                    .update(wg_device, device_object.signal_emitter())
+                    .update(wg_device, peer_object_paths, object.signal_emitter())
                     .await?;
             }
-
-            self.handle_peers(&name, peers).await?;
         }
         Ok(())
     }
@@ -126,10 +141,12 @@ impl Service {
         &mut self,
         device_name: &str,
         peers: Vec<wireguard_uapi::get::Peer>,
-    ) -> Result<()> {
+    ) -> Result<Vec<OwnedObjectPath>> {
+        let mut peer_object_paths: Vec<String> = Vec::new();
+
         for peer in peers {
             let name = hex::encode(peer.public_key);
-            let object_path = format!("{}/Devices/{}/Peers/{}", OBJECT_PATH, device_name, name);
+            let object_path = get_peer_object_path(device_name, &peer);
 
             self.desired_object_paths.insert(object_path.clone());
 
@@ -143,22 +160,31 @@ impl Service {
                     log::error!("could not serve peer {} at {}: {}", name, object_path, e,)
                 } else {
                     self.served_object_paths.insert(object_path.clone());
+                    peer_object_paths.push(object_path.clone());
                     log::debug!("peer object {} added", object_path);
                 }
             } else {
-                let peer_object = self
+                let object = self
                     .dbus_connection
                     .object_server()
-                    .interface::<_, Peer>(object_path)
+                    .interface::<_, Peer>(object_path.clone())
                     .await?;
-                peer_object
+                object
                     .get_mut()
                     .await
-                    .update(peer, peer_object.signal_emitter())
+                    .update(peer, object.signal_emitter())
                     .await?;
+                peer_object_paths.push(object_path.clone());
             }
         }
-        Ok(())
+
+        let peer_object_paths: Vec<OwnedObjectPath> = peer_object_paths
+            .iter()
+            .map(|s| OwnedObjectPath::try_from(s.as_str()))
+            .collect::<Result<_, _>>()
+            .map_err(zbus::Error::from)?;
+
+        Ok(peer_object_paths)
     }
 
     /// One reconcile cycle: converge, then prune.

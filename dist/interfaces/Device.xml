@@ -8,6 +8,7 @@
      <annotation name="org.freedesktop.DBus.Property.EmitsChangedSignal" value="const"/>
    </property>
    <property name="ListenPort" type="q" access="read"/>
+   <property name="Peers" type="ao" access="read"/>
    <property name="PublicKey" type="s" access="read"/>
  </interface>
 </node>
