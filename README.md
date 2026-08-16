@@ -35,13 +35,14 @@ not legal in a D-Bus path).
 
 **`…Device`**
 
-| Property     | Type | Notes                          |
-|--------------|------|--------------------------------|
-| `IfIndex`    | `u`  | constant                       |
-| `IfName`     | `s`  | constant                       |
-| `PublicKey`  | `s`  | base64, `""` if unset          |
-| `ListenPort` | `q`  |                                |
-| `FwMark`     | `u`  |                                |
+| Property     | Type | Notes                               |
+|--------------|------|-------------------------------------|
+| `IfIndex`    | `u`  | constant                            |
+| `IfName`     | `s`  | constant                            |
+| `PublicKey`  | `s`  | base64, `""` if unset               |
+| `ListenPort` | `q`  |                                     |
+| `FwMark`     | `u`  |                                     |
+| `Peers`      | `ao` | object paths of this device's peers |
 
 **`…Peer`**
 
